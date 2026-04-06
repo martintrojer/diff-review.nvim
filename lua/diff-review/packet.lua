@@ -102,11 +102,20 @@ function M.append(entry, comment, config)
   if entry.qf_lnum and entry.qf_lnum > 0 then
     table.insert(lines, "- Quickfix line: " .. tostring(entry.qf_lnum))
   end
+  if entry.hunk and entry.hunk ~= "" then
+    table.insert(lines, "- Hunk: " .. entry.hunk)
+  end
 
   table.insert(lines, "- Selected line:")
   table.insert(lines, "```text")
   table.insert(lines, entry.selected_line or "(blank line)")
   table.insert(lines, "```")
+  if entry.hunk_lines and #entry.hunk_lines > 0 then
+    table.insert(lines, "- Hunk snippet:")
+    table.insert(lines, "```diff")
+    vim.list_extend(lines, entry.hunk_lines)
+    table.insert(lines, "```")
+  end
   table.insert(lines, "- Context:")
   vim.list_extend(lines, entry.context or { "```text", "(no context available)", "```" })
   table.insert(lines, "- Reviewer comment:")

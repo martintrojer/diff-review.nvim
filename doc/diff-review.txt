@@ -26,6 +26,7 @@ Core behavior:
 - Review capture from the current DiffTool cursor position
 - Support for git, jj, and hg
 - SCM-aware revision metadata via provider modules
+- Provider-backed hunk extraction when available
 - Quickfix-aware directory diff support
 
 ==============================================================================
@@ -106,6 +107,7 @@ Revision behavior:
 
 - git:
   committed side uses a real `HEAD` commit id
+  peer metadata may include the base blob id
   worktree side uses a real content hash
 
 - jj:
@@ -113,7 +115,16 @@ Revision behavior:
 
 - hg:
   committed side uses a real revision identifier
+  peer metadata may include the tracked file hash
   worktree side uses a real content hash
+
+Hunk behavior:
+
+- when the provider can recover a unified diff for the current file, the review
+  item includes a hunk header
+- the review packet also includes a diff snippet for that hunk
+- this is strongest when the DiffTool pair matches the SCM provider's view of
+  the comparison
 
 Side behavior:
 
@@ -138,6 +149,12 @@ Run the integration suite with:
 
 The suite creates temporary git, jj, and hg repositories, runs real headless
 DiffTool sessions, and verifies extracted metadata plus review-packet output.
+
+The suite also covers:
+
+- file and directory diff integration
+- left-side and right-side capture
+- one public command/mapping path
 
 ==============================================================================
 vim:tw=78:ts=8:noet:ft=help:norl:

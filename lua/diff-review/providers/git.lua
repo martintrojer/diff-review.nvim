@@ -6,6 +6,35 @@ local M = {
   name = "git",
 }
 
+local function repo_relpath(ctx)
+  if detect.is_inside_root(ctx.right_path, ctx.detection.repo_root) and ctx.right_rel then
+    return ctx.right_rel
+  end
+  if detect.is_inside_root(ctx.left_path, ctx.detection.repo_root) and ctx.left_rel then
+    return ctx.left_rel
+  end
+  return ctx.right_rel or ctx.left_rel
+end
+
+function M.diff_for_path(ctx)
+  local relpath = repo_relpath(ctx)
+  if not relpath or relpath == "" or relpath:sub(1, 1) == "/" then
+    return nil
+  end
+  return util.run({ "git", "diff", "--no-ext-diff", "--", relpath }, ctx.detection.repo_root)
+end
+
+local function head_blob(repo_root, relpath)
+  if not relpath or relpath == "" then
+    return nil
+  end
+  local out = util.run({ "git", "ls-tree", "HEAD", "--", relpath }, repo_root)
+  if not out then
+    return nil
+  end
+  return out:match("^%d+ blob (%x+)")
+end
+
 function M.resolve_session(ctx)
   local current_in_repo = detect.is_inside_root(ctx.current_path, ctx.detection.repo_root)
   local peer_in_repo = detect.is_inside_root(ctx.peer_path, ctx.detection.repo_root)
@@ -22,18 +51,24 @@ function M.resolve_session(ctx)
     }
   end
 
-  local function head_spec()
+  local function head_spec(relpath)
     local short = util.shorten_hash(head)
+    local blob = head_blob(ctx.detection.repo_root, relpath)
+    local blob_short = util.shorten_hash(blob)
+    local display = short and ("HEAD " .. short) or "HEAD"
+    if blob_short then
+      display = display .. " blob " .. blob_short
+    end
     return {
       rev = head or "HEAD",
       kind = "commit",
-      display = short and ("HEAD " .. short) or "HEAD",
+      display = display,
     }
   end
 
   if current_in_repo and not peer_in_repo then
     local current = worktree_spec(current_hash)
-    local peer = head_spec()
+    local peer = head_spec(repo_relpath(ctx))
     return base.make_meta(ctx, {
       confidence = "medium",
       current_rev = current.rev,
@@ -46,7 +81,7 @@ function M.resolve_session(ctx)
   end
 
   if peer_in_repo and not current_in_repo then
-    local current = head_spec()
+    local current = head_spec(repo_relpath(ctx))
     local peer = worktree_spec(peer_hash)
     return base.make_meta(ctx, {
       confidence = "medium",
@@ -61,7 +96,7 @@ function M.resolve_session(ctx)
 
   if ctx.side == "right" then
     local current = worktree_spec(current_hash)
-    local peer = head_spec()
+    local peer = head_spec(repo_relpath(ctx))
     return base.make_meta(ctx, {
       confidence = "low",
       current_rev = current.rev,
@@ -73,7 +108,7 @@ function M.resolve_session(ctx)
     })
   end
 
-  local current = head_spec()
+  local current = head_spec(repo_relpath(ctx))
   local peer = worktree_spec(peer_hash)
   return base.make_meta(ctx, {
     confidence = "low",

@@ -66,6 +66,67 @@ local function context_title(side)
   return "Current side context (right/changed)"
 end
 
+local function parse_count(value)
+  if value == "" or value == nil then
+    return 1
+  end
+  return tonumber(value) or 1
+end
+
+local function line_in_range(line, start_line, count)
+  if not start_line or not count then
+    return false
+  end
+  if count == 0 then
+    return line == start_line
+  end
+  return line >= start_line and line < start_line + count
+end
+
+local function hunk_for_cursor(diff_text, side, line_number)
+  if not diff_text or diff_text == "" then
+    return nil
+  end
+
+  local current_hunk
+  local hunks = {}
+  for _, line in ipairs(vim.split(diff_text, "\n", { plain = true })) do
+    local old_start, old_count, new_start, new_count =
+      line:match("^@@ %-(%d+),?(%d*) %+(%d+),?(%d*) @@")
+    if old_start then
+      current_hunk = {
+        header = line,
+        old_start = tonumber(old_start),
+        old_count = parse_count(old_count),
+        new_start = tonumber(new_start),
+        new_count = parse_count(new_count),
+        lines = { line },
+      }
+      table.insert(hunks, current_hunk)
+    elseif current_hunk then
+      local is_file_header = line:match("^diff %-%-git ")
+        or line:match("^diff %-r ")
+        or line:match("^%-%-%- ")
+        or line:match("^%+%+%+ ")
+      if is_file_header then
+        current_hunk = nil
+      else
+        table.insert(current_hunk.lines, line)
+      end
+    end
+  end
+
+  for _, hunk in ipairs(hunks) do
+    local start_line = side == "left" and hunk.old_start or hunk.new_start
+    local count = side == "left" and hunk.old_count or hunk.new_count
+    if line_in_range(line_number, start_line, count) then
+      return hunk
+    end
+  end
+
+  return nil
+end
+
 function M.current()
   local current, err = session.current()
   if not current then
@@ -95,7 +156,7 @@ function M.current()
   local left_rel = qf_data and qf_data.rel
     or detect.relative_path(current.side == "left" and path or peer_path, detection.repo_root)
   local provider = providers.for_detection(detection)
-  local meta = provider.resolve_session({
+  local provider_ctx = {
     detection = detection,
     side = current.side,
     current_path = path,
@@ -106,7 +167,9 @@ function M.current()
     right_rel = right_rel,
     qf_entry = current.qf_entry,
     qf_data = qf_data,
-  })
+  }
+  local meta = provider.resolve_session(provider_ctx)
+  local diff_text = provider.diff_for_path and provider.diff_for_path(provider_ctx) or nil
 
   local entry = {
     vcs = meta.vcs,
@@ -123,6 +186,12 @@ function M.current()
     qf_text = current.qf_entry and current.qf_entry.text or nil,
     qf_lnum = current.qf_entry and current.qf_entry.lnum or nil,
   }
+
+  local hunk = hunk_for_cursor(diff_text, current.side, cursor[1])
+  if hunk then
+    entry.hunk = hunk.header
+    entry.hunk_lines = hunk.lines
+  end
 
   local context = {}
   vim.list_extend(

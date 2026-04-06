@@ -6,6 +6,14 @@ local M = {
   name = "jj",
 }
 
+function M.diff_for_path(ctx)
+  local relpath = ctx.right_rel or ctx.left_rel
+  if not relpath or relpath == "" or relpath:sub(1, 1) == "/" then
+    return nil
+  end
+  return util.run({ "jj", "diff", "--git", "--", relpath }, ctx.detection.repo_root)
+end
+
 local function rev_spec(repo_root, revset)
   local out = util.run({
     "jj",

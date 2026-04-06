@@ -10,6 +10,7 @@ This plugin is for Neovim `0.12+` only. It is designed around `:DiffTool` side-b
 - Keep one markdown review packet per repo root
 - Support `git`, `jj`, and `hg`
 - Extract real SCM-derived identifiers where possible
+- Recover the active hunk and include a diff snippet in the review packet
 - Use quickfix metadata for directory diffs
 - Allow right-side and left-side capture, with explicit left-side labeling
 - Bundle an AI-oriented default review preamble, overridable via `setup()`
@@ -53,9 +54,13 @@ Metadata comes from three layers:
 
 The providers are responsible for repo-specific revision logic:
 
-- `git`: uses real `HEAD` commit IDs and worktree content hashes
+- `git`: uses real `HEAD` commit IDs, base blob IDs, and worktree content hashes
 - `jj`: uses real `@` / `@-` change and commit IDs
-- `hg`: uses real committed revision identifiers and worktree content hashes
+- `hg`: uses real committed revision identifiers, tracked file hashes, and worktree content hashes
+
+When the SCM provider can recover a unified diff for the current file, the
+plugin also extracts the matching hunk header and includes a diff snippet in
+the review packet.
 
 ## Review Packet
 
@@ -68,6 +73,8 @@ Entries are best effort and can include:
 - `side`
 - `peer_path`
 - `peer_rev`
+- `hunk`
+- `hunk_lines`
 - `context`
 - `selected_line`
 - `comment`
@@ -80,6 +87,7 @@ The default header is opinionated toward AI review and can be overridden with `p
 - Left-side capture is supported and explicitly tagged as left/original-side context.
 - Directory diffs are best when `:DiffTool` quickfix entries carry `user_data.rel`, `user_data.left`, and `user_data.right`, which Neovim `0.12` does.
 - For `git` and `hg`, uncommitted worktree content does not have a commit revision; the plugin uses a real content hash for that side instead.
+- Hunk capture is provider-backed. It is strongest when the DiffTool pair matches the SCM provider's view of the file comparison.
 
 ## Tests
 
@@ -90,6 +98,12 @@ tests/run_integration.sh
 ```
 
 The suite creates temporary `git`, `jj`, and `hg` repositories, opens real headless `:DiffTool` sessions, and asserts on extracted metadata plus review-packet output.
+
+It also covers:
+
+- file-mode and directory-mode integration
+- left-side and right-side capture paths
+- one public command/mapping path through `:DiffReviewComment`, `:DiffReviewOpen`, `cR`, and `gR`
 
 ## Help
 

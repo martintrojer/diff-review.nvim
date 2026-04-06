@@ -54,6 +54,16 @@ local function wait_for_difftool(mode)
   end
 end
 
+local function wait_for_mapping(lhs)
+  local ok = vim.wait(2000, function()
+    local map = vim.fn.maparg(lhs, "n", false, true)
+    return not vim.tbl_isempty(map)
+  end, 20)
+  if not ok then
+    error("timed out waiting for mapping " .. lhs)
+  end
+end
+
 local left = assert(env("DIFF_LEFT"), "missing DIFF_LEFT")
 local right = assert(env("DIFF_RIGHT"), "missing DIFF_RIGHT")
 local mode = env("DIFF_MODE") or "file"
@@ -64,6 +74,8 @@ local expect_peer_path = assert(env("EXPECT_PEER_PATH"), "missing EXPECT_PEER_PA
 local expect_rev = assert(env("EXPECT_REV"), "missing EXPECT_REV")
 local expect_peer_rev = assert(env("EXPECT_PEER_REV"), "missing EXPECT_PEER_REV")
 local expect_qf_text = env("EXPECT_QF_TEXT")
+local expect_hunk = env("EXPECT_HUNK")
+local use_public = env("USE_PUBLIC") == "1"
 local comment = env("EXPECT_COMMENT") or "integration test comment"
 
 local opts
@@ -91,9 +103,43 @@ assert_eq(entry.side, side, "side")
 if expect_qf_text then
   assert_eq(entry.qf_text, expect_qf_text, "qf_text")
 end
+if expect_hunk then
+  assert_eq(entry.hunk, expect_hunk, "hunk")
+end
 
 local packet = require("diff-review.packet")
-local number, bufnr = packet.append(entry, comment, require("diff-review").config)
+local number
+local bufnr
+
+if use_public then
+  assert_eq(vim.fn.exists(":DiffReviewComment"), 2, "DiffReviewComment command")
+  assert_eq(vim.fn.exists(":DiffReviewOpen"), 2, "DiffReviewOpen command")
+
+  vim.cmd("doautocmd BufWinEnter")
+  vim.cmd("doautocmd WinEnter")
+  wait_for_mapping("cR")
+  wait_for_mapping("gR")
+
+  local comment_map = vim.fn.maparg("cR", "n", false, true)
+  local open_map = vim.fn.maparg("gR", "n", false, true)
+  if vim.tbl_isempty(comment_map) then
+    error("missing cR buffer-local mapping")
+  end
+  if vim.tbl_isempty(open_map) then
+    error("missing gR buffer-local mapping")
+  end
+
+  vim.ui.input = function(_, cb)
+    cb(comment)
+  end
+  vim.cmd("DiffReviewComment")
+  vim.cmd("DiffReviewOpen")
+
+  number = 1
+  bufnr = vim.api.nvim_get_current_buf()
+else
+  number, bufnr = packet.append(entry, comment, require("diff-review").config)
+end
 assert_eq(number, 1, "review item number")
 
 local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
@@ -103,6 +149,9 @@ assert_contains(lines, "- Revision: " .. expect_rev, "packet rev")
 assert_contains(lines, "- Peer path: " .. expect_peer_path, "packet peer path")
 assert_contains(lines, "- Peer revision: " .. expect_peer_rev, "packet peer rev")
 assert_contains(lines, "- Side: " .. side, "packet side")
+if expect_hunk then
+  assert_contains(lines, "- Hunk: " .. expect_hunk, "packet hunk")
+end
 assert_contains(lines, "  " .. comment, "packet comment")
 
 print(string.format("ok %s %s", expect_vcs, mode .. ":" .. side))
