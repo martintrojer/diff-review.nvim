@@ -7,6 +7,11 @@ M.config = {
 
 local initialized = false
 
+local function difftool_active()
+  local ok, autocmds = pcall(vim.api.nvim_get_autocmds, { group = "nvim.difftool.events" })
+  return ok and #autocmds > 0
+end
+
 local function notify_capture(side, number)
   if side == "left" then
     vim.notify("Review added (" .. number .. ", left/original side)", vim.log.levels.INFO)
@@ -37,6 +42,9 @@ local function maybe_attach(bufnr)
   if vim.bo[bufnr].buftype ~= "" then
     return
   end
+  if not difftool_active() then
+    return
+  end
 
   local wins = vim.fn.win_findbuf(bufnr)
   for _, winid in ipairs(wins) do
@@ -45,6 +53,19 @@ local function maybe_attach(bufnr)
       return
     end
   end
+end
+
+local function schedule_attach(bufnr)
+  vim.schedule(function()
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      maybe_attach(bufnr)
+    end
+  end)
+  vim.defer_fn(function()
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      maybe_attach(bufnr)
+    end
+  end, 50)
 end
 
 function M.setup(opts)
@@ -58,7 +79,7 @@ function M.setup(opts)
   vim.api.nvim_create_autocmd({ "BufWinEnter", "WinEnter" }, {
     group = group,
     callback = function(args)
-      maybe_attach(args.buf)
+      schedule_attach(args.buf)
     end,
   })
 end

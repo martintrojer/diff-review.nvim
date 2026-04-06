@@ -89,6 +89,25 @@ The default header is opinionated toward AI review and can be overridden with `p
 - For `git` and `hg`, uncommitted worktree content does not have a commit revision; the plugin uses a real content hash for that side instead.
 - Hunk capture is provider-backed. It is strongest when the DiffTool pair matches the SCM provider's view of the file comparison.
 
+## Limits
+
+This plugin is built on top of `:DiffTool`, so it does not own the review
+surface or the revision model. That has a real consequence: metadata is
+best-effort, not authoritative.
+
+In practice:
+
+- directory diffs are generally better than ad hoc file-pair diffs
+- paths can drift when DiffTool is comparing temp files or exported snapshots
+- revision labels are strongest when the DiffTool session matches the SCM
+  provider's default comparison story
+- SCM-native integrations such as `jj-fugitive` remain more reliable because
+  they own the buffers, revisions, and review context directly
+
+If you want the highest-confidence review workflow, prefer a tightly integrated
+SCM-specific frontend. This plugin is better viewed as a generic DiffTool
+companion than as a full replacement for SCM-native review tooling.
+
 ## Tests
 
 Run the integration suite with:
