@@ -1,0 +1,143 @@
+*diff-review.txt*    Review capture for :DiffTool    Last change: 2026-04-06
+
+==============================================================================
+CONTENTS                                                   *diff-review-contents*
+
+Introduction........................................|diff-review-introduction|
+Requirements........................................|diff-review-requirements|
+Commands................................................|diff-review-commands|
+Mappings................................................|diff-review-mappings|
+Configuration....................................|diff-review-configuration|
+Behavior................................................|diff-review-behavior|
+Tests........................................................|diff-review-tests|
+
+==============================================================================
+INTRODUCTION                                           *diff-review-introduction*
+
+diff-review.nvim captures AI-oriented review notes from Neovim |:DiffTool|
+sessions into a markdown scratch buffer.
+
+The plugin is designed for side-by-side DiffTool workflows in Neovim 0.12+.
+It is not a generic replacement for normal diff-mode review tooling.
+
+Core behavior:
+
+- One review packet per repo root
+- Review capture from the current DiffTool cursor position
+- Support for git, jj, and hg
+- SCM-aware revision metadata via provider modules
+- Quickfix-aware directory diff support
+
+==============================================================================
+REQUIREMENTS                                           *diff-review-requirements*
+
+- Neovim 0.12+
+- |nvim.difftool|
+- One or more of:
+  - git
+  - jj
+  - hg
+
+The plugin can still open a packet without SCM detection, but metadata quality
+is lower when no supported VCS is available.
+
+==============================================================================
+COMMANDS                                                   *diff-review-commands*
+
+                                                        *:DiffReviewComment*
+:DiffReviewComment
+                Prompt for a review comment with |vim.ui.input()| and append
+                a review item from the current DiffTool position.
+
+                                                        *:DiffReviewOpen*
+:DiffReviewOpen
+                Open the current repository's review packet.
+
+==============================================================================
+MAPPINGS                                                   *diff-review-mappings*
+
+The plugin installs buffer-local mappings automatically in active diff windows
+when `keymaps = true`.
+
+                                                        *diff-review-cR*
+`cR`            Capture a review comment from the current DiffTool position.
+
+                                                        *diff-review-gR*
+`gR`            Open the review packet for the current repo.
+
+==============================================================================
+CONFIGURATION                                         *diff-review-configuration*
+
+Example:
+
+>
+    require("diff-review").setup({
+      prompt_lines = nil,
+      keymaps = true,
+    })
+<
+
+Options:
+
+`prompt_lines`
+                `nil` uses the bundled AI review preamble.
+                `false` disables the preamble.
+                `{ ... }` replaces it with custom lines.
+
+`keymaps`
+                When true, install `cR` and `gR` in DiffTool buffers.
+
+==============================================================================
+BEHAVIOR                                                   *diff-review-behavior*
+
+Review packets are keyed by repo root. If no repo root can be detected, the
+current file directory is used as the packet key and the packet header reports
+`vcs: unknown`.
+
+Metadata sources are layered:
+
+1. DiffTool window state
+2. quickfix metadata for directory diffs
+3. SCM providers
+
+The provider modules live under `lua/diff-review/providers/`.
+
+Revision behavior:
+
+- git:
+  committed side uses a real `HEAD` commit id
+  worktree side uses a real content hash
+
+- jj:
+  uses real `@` / `@-` change and commit ids when available
+
+- hg:
+  committed side uses a real revision identifier
+  worktree side uses a real content hash
+
+Side behavior:
+
+- right side is the normal changed-side workflow
+- left-side capture is allowed
+- left-side capture is explicitly tagged in the notification and review entry
+
+Path behavior:
+
+- prefer repo-root-relative paths
+- for directory diffs, prefer DiffTool quickfix `user_data.rel`
+- when no repo-relative path can be recovered, fall back to the visible path
+
+==============================================================================
+TESTS                                                         *diff-review-tests*
+
+Run the integration suite with:
+
+>
+    tests/run_integration.sh
+<
+
+The suite creates temporary git, jj, and hg repositories, runs real headless
+DiffTool sessions, and verifies extracted metadata plus review-packet output.
+
+==============================================================================
+vim:tw=78:ts=8:noet:ft=help:norl:
