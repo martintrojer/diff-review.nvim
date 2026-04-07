@@ -1,5 +1,19 @@
 # diff-review.nvim
 
+> **Deprecated.** This plugin has been replaced by
+> [redline.nvim](https://github.com/martintrojer/redline.nvim), which provides
+> the same DiffTool review capture (as the `difftool` provider) plus unified
+> diff and inline diff support across git, jj, and sapling.
+>
+> To migrate, add redline.nvim and enable the difftool provider:
+> ```lua
+> require("redline").setup({ providers = { difftool = true } })
+> ```
+>
+> This repository is archived and will not receive further updates.
+
+---
+
 Capture AI-oriented code review notes from Neovim `:DiffTool` sessions into a per-repo scratch buffer.
 
 This plugin is for Neovim `0.12+` only. It is designed around `:DiffTool` side-by-side diffs, not generic diff mode.
